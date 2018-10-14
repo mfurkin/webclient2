@@ -88,7 +88,7 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	@Override
 	public void getFileList() {
 		// TODO Auto-generated method stub
-		
+		removeAllFilesFromCombo();
 		URL url = null;
 		try { 
 			String st;
@@ -108,6 +108,10 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		} catch (IOException e) {
 			System.out.println("IOException caught in file list getting");
 		}
+	}
+	private void removeAllFilesFromCombo() {
+		filesCombo.removeAllItems();
+		filesCombo.addItem(SELECT_FILE);
 	}
 	private void enableGetFileButton() {
 		getFileButton.setEnabled(true);
@@ -165,8 +169,8 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	}
 	private void disableCombo() {
 		filesCombo.setEnabled(false);
-		filesCombo.removeAllItems();
-		filesCombo.addItem(SELECT_FILE);
+		removeAllFilesFromCombo();
+
 	}
 	private void disableDeleteButton() {
 		deleteButton.setEnabled(false);
@@ -203,7 +207,9 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 					OutputStream os = conn2.getOutputStream();
 					FileInputStream fis = new FileInputStream(file);
 					len = buf.length;
-					for (avail = fis.available(); avail >0;) {
+					avail = fis.available();
+					System.out.println("before for loop avail="+avail);
+					for (;avail >0;) {
 						System.out.println("read off="+bytes_total+" len="+len+" avail="+avail);
 						bytes_read = fis.read(buf, 0, avail > len ? len : avail);
 						avail = fis.available();
@@ -213,6 +219,8 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 						bytes_written += bytes_read;
 					}
 					fis.close();
+					String rsp = conn2.getResponseMessage();
+					System.out.println("Result: "+rsp);
 				}
 			} catch (MalformedURLException e) {
 				System.out.println("Как странно, неправильный адрес...");
