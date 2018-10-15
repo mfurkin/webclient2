@@ -23,10 +23,12 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JProgressBar;
+import javax.swing.JTextField;
 import javax.swing.SpringLayout;
 import javax.swing.SwingConstants;
 
-public class ClientDialog extends JFrame implements FileListGetter, FileDeleter, FileLoader, FileGetter, Drawer {
+public class ClientDialog extends JFrame implements FileListGetter, FileDeleter, FileLoader, FileGetter, Drawer, 
+													FirstTimeChecker,LastTimeChecker {
 	private static final String SELECT_FILE = "Select file";
 	private final static String TITLE = "WebClient",
 								DELETE_BUTTON_TEXT = "Delete",
@@ -36,7 +38,10 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	private final static String URL_STRING = "http://localhost:8080";
 	private static final String DELETE_METHOD = "DELETE";
 	private static final String POST_METHOD = "POST";
-	private JButton deleteButton,loadButton,getFileButton,getListButton;
+	private static final String FIRST_TIME_BUTTON_TEXT = "Set begin time";
+	private static final String LAST_TIME_BUTTON_TEXT = "Set end time";
+	private JButton deleteButton,loadButton,getFileButton,getListButton,firstTimeButton,lastTimeButton;
+	private JTextField firstTimeField,lastTimeField;
 	private JComboBox<String> filesCombo;
 	private JProgressBar progressBar;
 	private JDrawPanel viewport;
@@ -57,6 +62,10 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		getFileButton = new JButton(GET_FILE_BUTTON_TEXT);
 		
 		getListButton = new JButton(GET_LIST_BUTTON_TEXT);
+		firstTimeButton = new JButton(FIRST_TIME_BUTTON_TEXT);
+		firstTimeField = new JTextField(15);
+		lastTimeField = new JTextField(15);
+		lastTimeButton = new JButton(LAST_TIME_BUTTON_TEXT);
 		header ="No data";
 		viewport = new JDrawPanel(this);
 		filesCombo = new JComboBox<String>();
@@ -68,6 +77,10 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		container.add(filesCombo);
 		container.add(getListButton);
 		container.add(loadButton);
+		container.add(firstTimeButton);
+		container.add(lastTimeButton);
+		container.add(firstTimeField);
+		container.add(lastTimeField);
 		filesCombo.setEnabled(false);
 		filesCombo.addItem(SELECT_FILE);
 		deleteButton.setEnabled(false);
@@ -79,6 +92,8 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		deleteButton.addActionListener(new DeleteButtonListener(DELETE_BUTTON_TEXT,this));
 		loadButton.addActionListener(new LoadButtonListener(LOAD_BUTTON_TEXT,this));
 		getFileButton.addActionListener(new FileButtonListener(GET_FILE_BUTTON_TEXT,this));
+		firstTimeButton.addActionListener(new FirstTimeButtonListener(FIRST_TIME_BUTTON_TEXT,this));
+		lastTimeButton.addActionListener(new LastTimeButtonListener(LAST_TIME_BUTTON_TEXT,this));
 		progressBar.setVisible(false);
 		layout.putConstraint(SpringLayout.NORTH, deleteButton, 20, SpringLayout.NORTH, container);
 		layout.putConstraint(SpringLayout.WEST, deleteButton, 20, SpringLayout.WEST, container);
@@ -95,8 +110,16 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		layout.putConstraint(SpringLayout.EAST, viewport, -20, SpringLayout.EAST, container);
 		layout.putConstraint(SpringLayout.NORTH, getListButton, 20, SpringLayout.SOUTH, viewport);
 		layout.putConstraint(SpringLayout.WEST, getListButton, 20, SpringLayout.WEST, container);
+		layout.putConstraint(SpringLayout.NORTH, firstTimeButton, 20, SpringLayout.SOUTH, viewport);
+		layout.putConstraint(SpringLayout.WEST, firstTimeButton, 20, SpringLayout.EAST, getListButton);
+		layout.putConstraint(SpringLayout.NORTH, firstTimeField, 20, SpringLayout.SOUTH, viewport);
+		layout.putConstraint(SpringLayout.WEST, firstTimeField, 20, SpringLayout.EAST, firstTimeButton);
 		layout.putConstraint(SpringLayout.SOUTH, loadButton, -20, SpringLayout.SOUTH, container);
 		layout.putConstraint(SpringLayout.EAST, loadButton, -20, SpringLayout.EAST, container);
+		layout.putConstraint(SpringLayout.NORTH, lastTimeField, 20, SpringLayout.SOUTH, viewport);
+		layout.putConstraint(SpringLayout.EAST, lastTimeField, -20, SpringLayout.WEST, lastTimeButton);
+		layout.putConstraint(SpringLayout.NORTH, lastTimeButton, 20, SpringLayout.SOUTH, viewport);
+		layout.putConstraint(SpringLayout.EAST, lastTimeButton, -20, SpringLayout.WEST, loadButton);
 		viewport.setSize(300, 300);
 		setSize(1000,700);
 	}
@@ -107,7 +130,6 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		try { 
 			String st;
 			url = new URL(URL_STRING);
-//			BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
 			BufferedReader br = getBufferedReader(url);
 			for (st = br.readLine();st != null;) {	
 				addLineToCombo(st);
@@ -276,21 +298,15 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	@Override
 	public void getFile() {
 		String fname = getFileName();
-		System.out.println("getFile enter fname="+fname);
 		if (fname == null)
 			JOptionPane.showMessageDialog(null, "File have not been selected", "Error", JOptionPane.ERROR_MESSAGE);
 		else {
 			try {
 				String lines[];
-				System.out.println("getFile try block enter");
 				URL url = new URL(URL_STRING+"/"+fname);
-				System.out.println("getFIle after url getting");
 				BufferedReader br = getBufferedReader(url);		
-				System.out.println("getFile after BuffereReader creation");
 				lines = br.lines().toArray(String[]::new);
-				System.out.println("getFile after lines getting");
 				header = Arrays.stream(lines).filter((String st)->{return st.startsWith("#");}).findFirst().orElse("no header");
-				System.out.println("getFile after header getting");
 				data = Arrays.stream(lines).filter((Object obj)->{
 					boolean result = false;
 					if (obj instanceof String) {
@@ -312,22 +328,16 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 					}
 					return result;
 				}).map((String st)-> {
-					int i;
 					String nums[] = st.split(" ");
-					System.out.println("----------------------------------------------------------");
-					System.out.println("lambda st="+st);
-					for (i=0;i<nums.length;)
-						System.out.println("cur st="+nums[i++]);
-					System.out.println("----------------------------------------------------------");
 					return new Sample(Double.parseDouble(nums[0]),Double.parseDouble(nums[1]));
 				}).toArray(Sample[]::new);
-				System.out.println("getFile after data getting");
+				firstTime = Sample.minTime(data);
+				lastTime = Sample.maxTime(data);
+				setTimeToField(firstTimeField,firstTime);
+				setTimeToField(lastTimeField,lastTime);
 				convertToGraphics();
-				System.out.println("getFile after conversion data");
-				repaintViewport();
 			} catch (MalformedURLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				JOptionPane.showMessageDialog(null, "Что-то не то с адресом", "Ошибка", JOptionPane.ERROR_MESSAGE);
 			}
 		}
 	}
@@ -341,24 +351,46 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		minWidth = delta;
 		minHeight = delta;
 		maxWidth = viewport.getWidth()- delta;
-		maxHeight = viewport.getHeight() - delta;
-		firstTime = Sample.minTime(data);
-		lastTime = Sample.maxTime(data);
+		maxHeight = viewport.getHeight() - delta;		
 		grSamples = Sample.convert(Arrays.stream(data).filter((Sample s)->{
 			return s.betweenTimes(firstTime, lastTime);
 		}).toArray(Sample[]::new), minWidth, maxWidth, minHeight, maxHeight);
+		repaintViewport();
+	}
+	
+	private void setTimeToField(JTextField textField, double firstTime) {
+		textField.setText(Double.toString(firstTime));
 	}
 	@Override
 	public void draw(Graphics g) {
 		char chars[] = header.toCharArray();
 		g.drawChars(header.toCharArray(), 0, chars.length, 15, 15);
-		if (grSamples == null)
-			System.out.println("draw - grSamples is null!");
-		else {
+		if (grSamples != null)
+		{
 			int i,len = grSamples.length - 1;
-			System.out.println("draw len="+len);
 			for (i=0;i<len;i++)
 				grSamples[i].drawTo(g, grSamples[i+1]);
 		}
+	}
+	@Override
+	public void checkAndInputFirstTimeLimit() {
+		firstTime = timeInput(firstTime,firstTimeField.getText());
+		setTimeToField(firstTimeField, firstTime);
+		convertToGraphics();
+	}
+	private double timeInput(double prevValue, String st) {
+		double result;
+		try {
+			result = Double.parseDouble(st);
+		} catch (NumberFormatException ex) {
+			result = prevValue;
+		}
+		return result;
+	}
+	@Override
+	public void checkAndInputLastTimeLimit() {
+		lastTime = timeInput(lastTime,lastTimeField.getText());
+		setTimeToField(lastTimeField,lastTime);
+		convertToGraphics();
 	}
 }
