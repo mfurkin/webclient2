@@ -2,7 +2,9 @@ package org.misha.webclient.gui;
 
 import java.awt.Color;
 import java.awt.Container;
+import java.awt.Graphics;
 import java.awt.HeadlessException;
+import java.awt.Rectangle;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,15 +15,18 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.Arrays;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import javax.swing.JProgressBar;
 import javax.swing.SpringLayout;
+import javax.swing.SwingConstants;
 
-public class ClientDialog extends JFrame implements FileListGetter, FileDeleter, FileLoader {
+public class ClientDialog extends JFrame implements FileListGetter, FileDeleter, FileLoader, FileGetter, Drawer {
 	private static final String SELECT_FILE = "Select file";
 	private final static String TITLE = "WebClient",
 								DELETE_BUTTON_TEXT = "Delete",
@@ -33,8 +38,13 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	private static final String POST_METHOD = "POST";
 	private JButton deleteButton,loadButton,getFileButton,getListButton;
 	private JComboBox<String> filesCombo;
-//	private JViewport viewport;
+	private JProgressBar progressBar;
 	private JDrawPanel viewport;
+	private Sample data[];
+	private String header;
+	private double firstTime;
+	private double lastTime;
+	private GrSample grSamples[];
 	public ClientDialog() throws HeadlessException {
 		super(TITLE);
 		
@@ -47,10 +57,11 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		getFileButton = new JButton(GET_FILE_BUTTON_TEXT);
 		
 		getListButton = new JButton(GET_LIST_BUTTON_TEXT);
-
-		viewport = new JDrawPanel();
+		header ="No data";
+		viewport = new JDrawPanel(this);
 		filesCombo = new JComboBox<String>();
-		
+		progressBar = new JProgressBar(SwingConstants.HORIZONTAL);
+		container.add(progressBar);
 		container.add(deleteButton);
 		container.add(getFileButton);
 		container.add(viewport);
@@ -67,8 +78,13 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		getListButton.addActionListener(new ListButtonListener(GET_LIST_BUTTON_TEXT,this));
 		deleteButton.addActionListener(new DeleteButtonListener(DELETE_BUTTON_TEXT,this));
 		loadButton.addActionListener(new LoadButtonListener(LOAD_BUTTON_TEXT,this));
+		getFileButton.addActionListener(new FileButtonListener(GET_FILE_BUTTON_TEXT,this));
+		progressBar.setVisible(false);
 		layout.putConstraint(SpringLayout.NORTH, deleteButton, 20, SpringLayout.NORTH, container);
 		layout.putConstraint(SpringLayout.WEST, deleteButton, 20, SpringLayout.WEST, container);
+		layout.putConstraint(SpringLayout.WEST, progressBar, 20, SpringLayout.EAST, getFileButton);
+		layout.putConstraint(SpringLayout.EAST, progressBar, -20, SpringLayout.WEST, filesCombo);
+		layout.putConstraint(SpringLayout.NORTH, progressBar, 20, SpringLayout.NORTH, container);
 		layout.putConstraint(SpringLayout.NORTH, getFileButton, 20, SpringLayout.NORTH, container);
 		layout.putConstraint(SpringLayout.WEST, getFileButton, 20, SpringLayout.EAST, deleteButton);	
 		layout.putConstraint(SpringLayout.NORTH, filesCombo, 20, SpringLayout.NORTH, container);
@@ -82,32 +98,39 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		layout.putConstraint(SpringLayout.SOUTH, loadButton, -20, SpringLayout.SOUTH, container);
 		layout.putConstraint(SpringLayout.EAST, loadButton, -20, SpringLayout.EAST, container);
 		viewport.setSize(300, 300);
-//		viewport.setExtentSize(d);
 		setSize(1000,700);
 	}
 	@Override
 	public void getFileList() {
-		// TODO Auto-generated method stub
 		removeAllFilesFromCombo();
 		URL url = null;
 		try { 
 			String st;
 			url = new URL(URL_STRING);
-			BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+//			BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+			BufferedReader br = getBufferedReader(url);
 			for (st = br.readLine();st != null;) {	
-				System.out.println("Got line: "+st);
 				addLineToCombo(st);
 				st = br.readLine();
 			}		
-			System.out.println("Receive is complete");
 			enableCombo();
 			enableDeleteButton();
 			enableGetFileButton();
 		} catch (MalformedURLException ex) {
-			System.out.println("Malformed localhost url - как странно :-)...");
+			JOptionPane.showMessageDialog(null, "Некорректный адрес, странно...", "Ошибка", JOptionPane.ERROR_MESSAGE);
 		} catch (IOException e) {
-			System.out.println("IOException caught in file list getting");
+			JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка", JOptionPane.ERROR_MESSAGE);
 		}
+	}
+	private BufferedReader getBufferedReader(URL url) {
+		BufferedReader result = null;
+		try {
+			result = new BufferedReader(new InputStreamReader(url.openStream()));
+		} catch (IOException e) {
+			JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка", JOptionPane.ERROR_MESSAGE);
+			result = null;
+		};
+		return result;
 	}
 	private void removeAllFilesFromCombo() {
 		filesCombo.removeAllItems();
@@ -133,7 +156,6 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		if (fname == null)
 			JOptionPane.showMessageDialog(null, "File have not been selected", "Error", JOptionPane.ERROR_MESSAGE);
 		else {
-			
 			URL url;
 			try {
 				url = new URL(URL_STRING + "/" + fname);
@@ -148,7 +170,7 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 					int rsp_code = conn2.getResponseCode();
 					if (rsp_code == HttpURLConnection.HTTP_OK) {
 						title = "Message";
-						msg = "file" + fname + " was successful deleted.";
+						msg = "file " + fname + " was successful deleted.";
 						type = JOptionPane.INFORMATION_MESSAGE;
 						disableGetFileButton();
 						disableDeleteButton();
@@ -161,9 +183,9 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 					JOptionPane.showMessageDialog(null, msg, title, type);
 				}
 			} catch (MalformedURLException e) {
-				System.out.println("MalformedURL exception - как странно :-)...");
+				JOptionPane.showMessageDialog(null, "Incorrect URL", "Error", JOptionPane.ERROR_MESSAGE);
 			} catch (IOException e) {
-				System.out.println("IOException has been caught");
+				JOptionPane.showMessageDialog(null, "Some IO error have been detected", "Error", JOptionPane.ERROR_MESSAGE);
 			}	
 		}
 	}
@@ -199,8 +221,10 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 				if (!(conn instanceof HttpURLConnection))
 					JOptionPane.showMessageDialog(null, "Как странно, оно не http", "Error", JOptionPane.ERROR_MESSAGE);
 				else {
-					int bytes_read,bytes_written = 0,bytes_total = 0, len, avail;
+					int bytes_read,bytes_written = 0,len, avail;
 					byte buf[] = new byte [200];
+					String title,msg;
+					int type;
 					HttpURLConnection conn2  = (HttpURLConnection) conn;
 					conn2.setRequestMethod(POST_METHOD);
 					conn2.setDoOutput(true);
@@ -208,26 +232,133 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 					FileInputStream fis = new FileInputStream(file);
 					len = buf.length;
 					avail = fis.available();
-					System.out.println("before for loop avail="+avail);
+					setupProgressBar(avail);
 					for (;avail >0;) {
-						System.out.println("read off="+bytes_total+" len="+len+" avail="+avail);
+						
 						bytes_read = fis.read(buf, 0, avail > len ? len : avail);
-						avail = fis.available();
-						bytes_total += bytes_read;
-						System.out.println("write off="+bytes_total+" len="+bytes_read);
+						avail = fis.available();						
 						os.write(buf, 0, bytes_read);
 						bytes_written += bytes_read;
+						updateProgressBar(bytes_written);
 					}
+					hideProgressBar();
 					fis.close();
-					String rsp = conn2.getResponseMessage();
-					System.out.println("Result: "+rsp);
+					int rsp_code = conn2.getResponseCode();
+					if (rsp_code == HttpURLConnection.HTTP_CREATED) {
+						title = "Message";
+						msg = "File "+ file.getName() + " was successfully transferred.";
+						type = JOptionPane.INFORMATION_MESSAGE;
+					} else {
+						title = "Error";
+						msg = "File could not be created";
+						type = JOptionPane.ERROR_MESSAGE;
+					}
+					JOptionPane.showMessageDialog(null, msg, title, type);
 				}
 			} catch (MalformedURLException e) {
-				System.out.println("Как странно, неправильный адрес...");
+				JOptionPane.showMessageDialog(null, "Как странно, неправильный адрес...", "Ошибка", JOptionPane.ERROR_MESSAGE);
 			} catch (IOException e) {
-				System.out.println("IOException caught");
+				JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка",JOptionPane.ERROR_MESSAGE);
+			}
+		}
+	}
+	private void hideProgressBar() {
+		progressBar.setVisible(false);
+	}
+	private void updateProgressBar(int bytes_written) {
+		progressBar.setValue(bytes_written);
+	}
+	private void setupProgressBar(int avail) {
+		progressBar.setMinimum(0);
+		progressBar.setMaximum(avail);
+		progressBar.setVisible(true);
+	}
+	@Override
+	public void getFile() {
+		String fname = getFileName();
+		System.out.println("getFile enter fname="+fname);
+		if (fname == null)
+			JOptionPane.showMessageDialog(null, "File have not been selected", "Error", JOptionPane.ERROR_MESSAGE);
+		else {
+			try {
+				String lines[];
+				System.out.println("getFile try block enter");
+				URL url = new URL(URL_STRING+"/"+fname);
+				System.out.println("getFIle after url getting");
+				BufferedReader br = getBufferedReader(url);		
+				System.out.println("getFile after BuffereReader creation");
+				lines = br.lines().toArray(String[]::new);
+				System.out.println("getFile after lines getting");
+				header = Arrays.stream(lines).filter((String st)->{return st.startsWith("#");}).findFirst().orElse("no header");
+				System.out.println("getFile after header getting");
+				data = Arrays.stream(lines).filter((Object obj)->{
+					boolean result = false;
+					if (obj instanceof String) {
+						String st = (String) obj;
+						String nums[] = st.split(" ");
+						result = Arrays.stream(nums).allMatch((Object ob)-> {
+							boolean res = false;
+							if (ob instanceof String) {
+								String s = (String) ob;
+								try {
+									Double.parseDouble(s);
+									res = true;
+								} catch (NumberFormatException ex) {
+									res = false;
+								}
+							}
+							return res;
+						});
+					}
+					return result;
+				}).map((String st)-> {
+					int i;
+					String nums[] = st.split(" ");
+					System.out.println("----------------------------------------------------------");
+					System.out.println("lambda st="+st);
+					for (i=0;i<nums.length;)
+						System.out.println("cur st="+nums[i++]);
+					System.out.println("----------------------------------------------------------");
+					return new Sample(Double.parseDouble(nums[0]),Double.parseDouble(nums[1]));
+				}).toArray(Sample[]::new);
+				System.out.println("getFile after data getting");
+				convertToGraphics();
+				System.out.println("getFile after conversion data");
+				repaintViewport();
+			} catch (MalformedURLException e) {
+				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+		}
+	}
+	private void repaintViewport() {
+		Rectangle rect = viewport.getVisibleRect();
+		viewport.repaint(rect);		
+	}
+	private void convertToGraphics() {
+		int minWidth,maxWidth,minHeight,maxHeight;
+		int delta = 20;
+		minWidth = delta;
+		minHeight = delta;
+		maxWidth = viewport.getWidth()- delta;
+		maxHeight = viewport.getHeight() - delta;
+		firstTime = Sample.minTime(data);
+		lastTime = Sample.maxTime(data);
+		grSamples = Sample.convert(Arrays.stream(data).filter((Sample s)->{
+			return s.betweenTimes(firstTime, lastTime);
+		}).toArray(Sample[]::new), minWidth, maxWidth, minHeight, maxHeight);
+	}
+	@Override
+	public void draw(Graphics g) {
+		char chars[] = header.toCharArray();
+		g.drawChars(header.toCharArray(), 0, chars.length, 15, 15);
+		if (grSamples == null)
+			System.out.println("draw - grSamples is null!");
+		else {
+			int i,len = grSamples.length - 1;
+			System.out.println("draw len="+len);
+			for (i=0;i<len;i++)
+				grSamples[i].drawTo(g, grSamples[i+1]);
 		}
 	}
 }
