@@ -5,17 +5,16 @@ import java.awt.Container;
 import java.awt.Graphics;
 import java.awt.HeadlessException;
 import java.awt.Rectangle;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -28,7 +27,7 @@ import javax.swing.SpringLayout;
 import javax.swing.SwingConstants;
 
 public class ClientDialog extends JFrame implements FileListGetter, FileDeleter, FileLoader, FileGetter, Drawer, 
-													FirstTimeChecker,LastTimeChecker {
+													FirstTimeChecker,LastTimeChecker, ListFileAdder,DataFileReceiver {
 	private static final String SELECT_FILE = "Select file";
 	private final static String TITLE = "WebClient",
 								DELETE_BUTTON_TEXT = "Delete",
@@ -50,6 +49,8 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	private double firstTime;
 	private double lastTime;
 	private GrSample grSamples[];
+	private ListFileGetter getter;
+	private DataFileGetter dfgetter;
 	public ClientDialog() throws HeadlessException {
 		super(TITLE);
 		
@@ -124,9 +125,24 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		setSize(1000,700);
 	}
 	@Override
+	public void enableOtherOperations() {
+		enableCombo();
+		enableDeleteButton();
+		enableGetFileButton();	
+	}
+	@Override
 	public void getFileList() {
 		removeAllFilesFromCombo();
-		URL url = null;
+		getter = new ListFileGetter(URL_STRING,this);
+		getter.execute();
+		try {
+			getter.get();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} catch (ExecutionException e) {
+			e.printStackTrace();
+		}
+		/*
 		try { 
 			String st;
 			url = new URL(URL_STRING);
@@ -143,7 +159,9 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		} catch (IOException e) {
 			JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка", JOptionPane.ERROR_MESSAGE);
 		}
+		*/
 	}
+	/*
 	private BufferedReader getBufferedReader(URL url) {
 		BufferedReader result = null;
 		try {
@@ -154,6 +172,7 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		};
 		return result;
 	}
+	*/
 	private void removeAllFilesFromCombo() {
 		filesCombo.removeAllItems();
 		filesCombo.addItem(SELECT_FILE);
@@ -169,7 +188,8 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		if (filesCombo.getItemCount() > 1)
 			filesCombo.setEnabled(true);
 	}
-	private void addLineToCombo(String st) {
+	@Override
+	public void addLineToCombo(String st) {
 		filesCombo.addItem(st);
 	}
 	@Override
@@ -296,11 +316,37 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		progressBar.setVisible(true);
 	}
 	@Override
+	public void setHeader(String aHeader) {
+		header = aHeader;
+	}
+	@Override
+	public void setData(Sample[] aData) {
+		data = aData;
+	}
+	@Override 
+	public void setTimeLimits() {
+		firstTime = Sample.minTime(data);
+		lastTime = Sample.maxTime(data);
+		setTimeToField(firstTimeField,firstTime);
+		setTimeToField(lastTimeField,lastTime);
+		convertToGraphics();
+	}
+	@Override
 	public void getFile() {
 		String fname = getFileName();
 		if (fname == null)
 			JOptionPane.showMessageDialog(null, "File have not been selected", "Error", JOptionPane.ERROR_MESSAGE);
 		else {
+				dfgetter = new DataFileGetter(URL_STRING+"/"+fname,this);
+				dfgetter.execute();
+				try {
+					dfgetter.get();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				} catch (ExecutionException e) {
+					e.printStackTrace();
+				}
+			/*
 			try {
 				String lines[];
 				URL url = new URL(URL_STRING+"/"+fname);
@@ -339,6 +385,7 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 			} catch (MalformedURLException e) {
 				JOptionPane.showMessageDialog(null, "Что-то не то с адресом", "Ошибка", JOptionPane.ERROR_MESSAGE);
 			}
+			*/
 		}
 	}
 	private void repaintViewport() {
