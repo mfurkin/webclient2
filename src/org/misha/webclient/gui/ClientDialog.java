@@ -6,11 +6,6 @@ import java.awt.Graphics;
 import java.awt.HeadlessException;
 import java.awt.Rectangle;
 import java.io.File;
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 
@@ -25,7 +20,7 @@ import javax.swing.SpringLayout;
 import javax.swing.SwingConstants;
 
 public class ClientDialog extends JFrame implements FileListGetter, FileDeleter, FileLoader, FileGetter, Drawer, 
-													FirstTimeChecker,LastTimeChecker, ListFileAdder,DataFileReceiver, DataFileSender {
+													FirstTimeChecker,LastTimeChecker, ListFileAdder,DataFileReceiver, DataFileSender, FileRemover {
 	private static final String SELECT_FILE = "Select file";
 	private final static String TITLE = "WebClient",
 								DELETE_BUTTON_TEXT = "Delete",
@@ -33,7 +28,6 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 								GET_FILE_BUTTON_TEXT = "Get File",
 								GET_LIST_BUTTON_TEXT = "Get Files list";
 	private final static String URL_STRING = "http://localhost:8080";
-	private static final String DELETE_METHOD = "DELETE";
 	private static final String FIRST_TIME_BUTTON_TEXT = "Set begin time";
 	private static final String LAST_TIME_BUTTON_TEXT = "Set end time";
 	private JButton deleteButton,loadButton,getFileButton,getListButton,firstTimeButton,lastTimeButton;
@@ -49,6 +43,7 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	private ListFileGetter getter;
 	private DataFileGetter dfgetter;
 	private DataFileLoader fileLoader;
+	private DataFileDeleter fdeleter;
 	public ClientDialog() throws HeadlessException {
 		super(TITLE);
 		
@@ -140,37 +135,9 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		} catch (ExecutionException e) {
 			e.printStackTrace();
 		}
-		/*
-		try { 
-			String st;
-			url = new URL(URL_STRING);
-			BufferedReader br = getBufferedReader(url);
-			for (st = br.readLine();st != null;) {	
-				addLineToCombo(st);
-				st = br.readLine();
-			}		
-			enableCombo();
-			enableDeleteButton();
-			enableGetFileButton();
-		} catch (MalformedURLException ex) {
-			JOptionPane.showMessageDialog(null, "Некорректный адрес, странно...", "Ошибка", JOptionPane.ERROR_MESSAGE);
-		} catch (IOException e) {
-			JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка", JOptionPane.ERROR_MESSAGE);
-		}
-		*/
+		
 	}
-	/*
-	private BufferedReader getBufferedReader(URL url) {
-		BufferedReader result = null;
-		try {
-			result = new BufferedReader(new InputStreamReader(url.openStream()));
-		} catch (IOException e) {
-			JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка", JOptionPane.ERROR_MESSAGE);
-			result = null;
-		};
-		return result;
-	}
-	*/
+	
 	private void removeAllFilesFromCombo() {
 		filesCombo.removeAllItems();
 		filesCombo.addItem(SELECT_FILE);
@@ -196,48 +163,29 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		if (fname == null)
 			JOptionPane.showMessageDialog(null, "File have not been selected", "Error", JOptionPane.ERROR_MESSAGE);
 		else {
-			URL url;
+			fdeleter = new DataFileDeleter(URL_STRING,fname,this);
+			fdeleter.execute();
 			try {
-				url = new URL(URL_STRING + "/" + fname);
-				URLConnection conn = url.openConnection();
-				if (!(conn instanceof HttpURLConnection)) {
-					JOptionPane.showMessageDialog(null, "Not http connection - странно!", "Error", JOptionPane.ERROR_MESSAGE);
-				} else {
-					HttpURLConnection conn2 = (HttpURLConnection) conn;
-					conn2.setRequestMethod(DELETE_METHOD);
-					String title,msg;
-					int type;
-					int rsp_code = conn2.getResponseCode();
-					if (rsp_code == HttpURLConnection.HTTP_OK) {
-						title = "Message";
-						msg = "file " + fname + " was successful deleted.";
-						type = JOptionPane.INFORMATION_MESSAGE;
-						disableGetFileButton();
-						disableDeleteButton();
-						disableCombo();
-					} else {
-						title = "Error";
-						msg = (rsp_code == HttpURLConnection.HTTP_NOT_FOUND) ? "File have not been found" : "FIle could not be deleted";
-						type = JOptionPane.ERROR_MESSAGE;
-					}
-					JOptionPane.showMessageDialog(null, msg, title, type);
-				}
-			} catch (MalformedURLException e) {
-				JOptionPane.showMessageDialog(null, "Incorrect URL", "Error", JOptionPane.ERROR_MESSAGE);
-			} catch (IOException e) {
-				JOptionPane.showMessageDialog(null, "Some IO error have been detected", "Error", JOptionPane.ERROR_MESSAGE);
-			}	
+				fdeleter.get();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			} catch (ExecutionException e) {
+				e.printStackTrace();
+			}
 		}
 	}
-	private void disableCombo() {
+	@Override
+	public void disableCombo() {
 		filesCombo.setEnabled(false);
 		removeAllFilesFromCombo();
 
 	}
-	private void disableDeleteButton() {
+	@Override
+	public void disableDeleteButton() {
 		deleteButton.setEnabled(false);
 	}
-	private void disableGetFileButton() {
+	@Override
+	public void disableGetFileButton() {
 		getFileButton.setEnabled(false);
 	}
 	private String getFileName() {
@@ -257,6 +205,13 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 			File file = fc.getSelectedFile();
 			fileLoader = new DataFileLoader(URL_STRING,file,this);
 			fileLoader.execute();
+			try {
+				fileLoader.get();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			} catch (ExecutionException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 	@Override
@@ -304,46 +259,6 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 				} catch (ExecutionException e) {
 					e.printStackTrace();
 				}
-			/*
-			try {
-				String lines[];
-				URL url = new URL(URL_STRING+"/"+fname);
-				BufferedReader br = getBufferedReader(url);		
-				lines = br.lines().toArray(String[]::new);
-				header = Arrays.stream(lines).filter((String st)->{return st.startsWith("#");}).findFirst().orElse("no header");
-				data = Arrays.stream(lines).filter((Object obj)->{
-					boolean result = false;
-					if (obj instanceof String) {
-						String st = (String) obj;
-						String nums[] = st.split(" ");
-						result = Arrays.stream(nums).allMatch((Object ob)-> {
-							boolean res = false;
-							if (ob instanceof String) {
-								String s = (String) ob;
-								try {
-									Double.parseDouble(s);
-									res = true;
-								} catch (NumberFormatException ex) {
-									res = false;
-								}
-							}
-							return res;
-						});
-					}
-					return result;
-				}).map((String st)-> {
-					String nums[] = st.split(" ");
-					return new Sample(Double.parseDouble(nums[0]),Double.parseDouble(nums[1]));
-				}).toArray(Sample[]::new);
-				firstTime = Sample.minTime(data);
-				lastTime = Sample.maxTime(data);
-				setTimeToField(firstTimeField,firstTime);
-				setTimeToField(lastTimeField,lastTime);
-				convertToGraphics();
-			} catch (MalformedURLException e) {
-				JOptionPane.showMessageDialog(null, "Что-то не то с адресом", "Ошибка", JOptionPane.ERROR_MESSAGE);
-			}
-			*/
 		}
 	}
 	private void repaintViewport() {

@@ -44,8 +44,6 @@ public class DataFileLoader extends SwingWorker<Void, Integer> {
 				
 				int bytes_read,bytes_written = 0,len, avail;
 				byte buf[] = new byte [200];
-				String title,msg;
-				int type;
 				HttpURLConnection conn2  = (HttpURLConnection) conn;
 				conn2.setRequestMethod(POST_METHOD);
 				

@@ -18,22 +18,10 @@ import javax.swing.SwingWorker;
  */
 public abstract class DataGetter extends SwingWorker<Void, String> {
 	private String url_st;
-	/**
-	 * 
-	 */
+	
 	public DataGetter(String anUrlSt) {
 		super();
 		url_st = anUrlSt;
-		// TODO Auto-generated constructor stub
-	}
-
-	/* (non-Javadoc)
-	 * @see javax.swing.SwingWorker#doInBackground()
-	 */
-	@Override
-	protected Void doInBackground() throws Exception {
-		// TODO Auto-generated method stub
-		return null;
 	}
 
 	protected BufferedReader getBufferedReader() {
