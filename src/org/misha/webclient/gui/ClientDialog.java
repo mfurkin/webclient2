@@ -6,9 +6,7 @@ import java.awt.Graphics;
 import java.awt.HeadlessException;
 import java.awt.Rectangle;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -27,7 +25,7 @@ import javax.swing.SpringLayout;
 import javax.swing.SwingConstants;
 
 public class ClientDialog extends JFrame implements FileListGetter, FileDeleter, FileLoader, FileGetter, Drawer, 
-													FirstTimeChecker,LastTimeChecker, ListFileAdder,DataFileReceiver {
+													FirstTimeChecker,LastTimeChecker, ListFileAdder,DataFileReceiver, DataFileSender {
 	private static final String SELECT_FILE = "Select file";
 	private final static String TITLE = "WebClient",
 								DELETE_BUTTON_TEXT = "Delete",
@@ -36,7 +34,6 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 								GET_LIST_BUTTON_TEXT = "Get Files list";
 	private final static String URL_STRING = "http://localhost:8080";
 	private static final String DELETE_METHOD = "DELETE";
-	private static final String POST_METHOD = "POST";
 	private static final String FIRST_TIME_BUTTON_TEXT = "Set begin time";
 	private static final String LAST_TIME_BUTTON_TEXT = "Set end time";
 	private JButton deleteButton,loadButton,getFileButton,getListButton,firstTimeButton,lastTimeButton;
@@ -51,6 +48,7 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 	private GrSample grSamples[];
 	private ListFileGetter getter;
 	private DataFileGetter dfgetter;
+	private DataFileLoader fileLoader;
 	public ClientDialog() throws HeadlessException {
 		super(TITLE);
 		
@@ -257,60 +255,20 @@ public class ClientDialog extends JFrame implements FileListGetter, FileDeleter,
 		fc.setDialogType(JFileChooser.OPEN_DIALOG);
 		if (fc.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
 			File file = fc.getSelectedFile();
-			try {
-				URL url = new URL(URL_STRING+"/"+file.getName());
-				URLConnection conn = url.openConnection();
-				if (!(conn instanceof HttpURLConnection))
-					JOptionPane.showMessageDialog(null, "Как странно, оно не http", "Error", JOptionPane.ERROR_MESSAGE);
-				else {
-					int bytes_read,bytes_written = 0,len, avail;
-					byte buf[] = new byte [200];
-					String title,msg;
-					int type;
-					HttpURLConnection conn2  = (HttpURLConnection) conn;
-					conn2.setRequestMethod(POST_METHOD);
-					conn2.setDoOutput(true);
-					OutputStream os = conn2.getOutputStream();
-					FileInputStream fis = new FileInputStream(file);
-					len = buf.length;
-					avail = fis.available();
-					setupProgressBar(avail);
-					for (;avail >0;) {
-						
-						bytes_read = fis.read(buf, 0, avail > len ? len : avail);
-						avail = fis.available();						
-						os.write(buf, 0, bytes_read);
-						bytes_written += bytes_read;
-						updateProgressBar(bytes_written);
-					}
-					hideProgressBar();
-					fis.close();
-					int rsp_code = conn2.getResponseCode();
-					if (rsp_code == HttpURLConnection.HTTP_CREATED) {
-						title = "Message";
-						msg = "File "+ file.getName() + " was successfully transferred.";
-						type = JOptionPane.INFORMATION_MESSAGE;
-					} else {
-						title = "Error";
-						msg = "File could not be created";
-						type = JOptionPane.ERROR_MESSAGE;
-					}
-					JOptionPane.showMessageDialog(null, msg, title, type);
-				}
-			} catch (MalformedURLException e) {
-				JOptionPane.showMessageDialog(null, "Как странно, неправильный адрес...", "Ошибка", JOptionPane.ERROR_MESSAGE);
-			} catch (IOException e) {
-				JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка",JOptionPane.ERROR_MESSAGE);
-			}
+			fileLoader = new DataFileLoader(URL_STRING,file,this);
+			fileLoader.execute();
 		}
 	}
-	private void hideProgressBar() {
+	@Override
+	public void hideProgressBar() {
 		progressBar.setVisible(false);
 	}
-	private void updateProgressBar(int bytes_written) {
+	@Override
+	public void updateProgressBar(int bytes_written) {
 		progressBar.setValue(bytes_written);
 	}
-	private void setupProgressBar(int avail) {
+	@Override
+	public void setupProgressBar(int avail) {
 		progressBar.setMinimum(0);
 		progressBar.setMaximum(avail);
 		progressBar.setVisible(true);

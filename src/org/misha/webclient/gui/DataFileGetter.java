@@ -18,7 +18,6 @@ public class DataFileGetter extends DataGetter {
 	public DataFileGetter(String anUrlSt, DataFileReceiver aReceiver) {
 		super(anUrlSt);
 		receiver = aReceiver;
-		// TODO Auto-generated constructor stub
 	}
 	@Override
 	protected Void doInBackground() throws Exception {
