@@ -4,10 +4,10 @@
 package org.misha.webclient.gui;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
 
 import javax.swing.JOptionPane;
 import javax.swing.SwingWorker;
@@ -17,24 +17,21 @@ import javax.swing.SwingWorker;
  *
  */
 public abstract class DataGetter extends SwingWorker<Void, String> {
-	private String url_st;
+	private String fname;
 	
-	public DataGetter(String anUrlSt) {
+	public DataGetter(String aFname) {
 		super();
-		url_st = anUrlSt;
+		fname = aFname;
 	}
 
 	protected BufferedReader getBufferedReader() {
 		
 		BufferedReader result = null;
 		try {
-			URL url =  new URL(url_st);
-			result = new BufferedReader(new InputStreamReader(url.openStream()));
-		} catch (MalformedURLException ex) {
-			JOptionPane.showMessageDialog(null, "Некорректный адрес, странно...", "Ошибка", JOptionPane.ERROR_MESSAGE);
-			result = null;
+			File file = new File(fname);
+			result = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
 		} catch (IOException e) {
-			JOptionPane.showMessageDialog(null, "Ошибка сети", "Ошибка", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(null, "Ошибка ввода", "Ошибка", JOptionPane.ERROR_MESSAGE);
 			result = null;
 		} 
 		return result;

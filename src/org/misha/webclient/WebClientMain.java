@@ -5,7 +5,9 @@ import org.misha.webclient.gui.ClientDialog;
 public class WebClientMain {
 
 	public static void main(String[] args) {
-		ClientDialog dlg = new ClientDialog();
+		for (String st : args)
+			System.out.println("arg="+st);
+		ClientDialog dlg = new ClientDialog(args[0]);
 		dlg.setVisible(true);
 	}
 

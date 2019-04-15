@@ -12,7 +12,6 @@ public class JDrawPanel extends JPanel {
 
 	@Override
 	public void paint(Graphics gr) {
-		// TODO Auto-generated method stub
 		super.paint(gr);
 		drawer.draw(gr);
 //		gr.drawLine(30, 40, 100, 150);
